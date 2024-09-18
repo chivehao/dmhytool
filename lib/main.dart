@@ -219,7 +219,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     Directory docDir = await getApplicationDocumentsDirectory();
-    Directory subDir = Directory('${docDir.path}/run.ikaros.ch.rsstool');
+    Directory subDir = Directory('${docDir.path}/run.ikaros.ch.dmhytool');
     if (!subDir.existsSync()) {
       subDir.createSync(recursive: true);
     }
