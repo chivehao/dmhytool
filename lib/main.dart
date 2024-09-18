@@ -1,4 +1,13 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:html/dom.dart' as Html;
+import 'package:html/parser.dart'  as Html;
+import 'package:path_provider/path_provider.dart';
+
+import 'message_utils.dart';
 
 void main() {
   runApp(const MyApp());
@@ -15,7 +24,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Rss Tool Home Page'),
+      home: const MyHomePage(title: 'Rss Tool Convert Page'),
     );
   }
 }
@@ -31,9 +40,14 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final GlobalKey _formKey = GlobalKey<FormState>();
-  String _namePrefix = "links";
+  String _namePrefix = "links-";
   int _singleFileLinkCounts = 50;
-  String _rssUrl = "";
+  String _url = "";
+  bool _isConverting = false;
+  bool _isFetching = false;
+  int _total = 0;
+  int _current = 0;
+  int _reqProgress = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -56,21 +70,34 @@ class _MyHomePageState extends State<MyHomePage> {
                 if (v == null || v.isEmpty) {
                   return '请输入输出文件名前缀';
                 }
-                return _namePrefix;
+                return null;
               },
               onSaved: (v) => _namePrefix = v!,
             ),
             const SizedBox(height: 20),
             TextFormField(
+              initialValue: _singleFileLinkCounts.toString(),
               decoration: const InputDecoration(labelText: '单个文件的链接数量'),
+              validator: (v) {
+                if (v == null || v.isEmpty) {
+                  return '请输入输出单个文件的链接数量';
+                }
+                return null;
+              },
               onSaved: (v) => _singleFileLinkCounts = int.parse(v!),
             ),
             const SizedBox(height: 20),
             TextFormField(
-              initialValue: _rssUrl,
-              decoration: const InputDecoration(labelText: 'RSS Url'),
-              maxLines: 5,
-              onSaved: (v) => _rssUrl = v!,
+              initialValue: _url,
+              decoration: const InputDecoration(labelText: '动漫花园Url'),
+              // maxLines: 2,
+              validator: (v) {
+                if (v == null || v.isEmpty) {
+                  return '请输入动漫花园Url';
+                }
+                return null;
+              },
+              onSaved: (v) => _url = v!,
             ),
             const SizedBox(height: 20),
             ElevatedButton(
@@ -78,8 +105,12 @@ class _MyHomePageState extends State<MyHomePage> {
                   shape: WidgetStateProperty.all(const StadiumBorder(
                       side: BorderSide(style: BorderStyle.none)))),
               onPressed: _doConvert,
-              child: const Text('登录', style: TextStyle(color: Colors.blue)),
-            )
+              child: const Text('转换', style: TextStyle(color: Colors.blue)),
+            ),
+            const SizedBox(height: 10),
+            if (_reqProgress > 0) Text("[${_isFetching ? "获取中" : "完毕"}]获取链接数：$_reqProgress"),
+            const SizedBox(height: 10),
+            if (_total != 0) Text("[${_isConverting ? "转换中" : "完毕"}]保存进度：$_current / $_total"),
           ],
         ),
       ),
@@ -87,17 +118,118 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _doConvert() async {
+    var state = (_formKey.currentState as FormState);
+    bool result = state.validate();
+    if (!result) {
+      Toast.show(context, "操作中止参数不全。");
+      return;
+    }
+    state.save();
+
+    setState(() {
+      _isConverting = true;
+    });
+
     List<String> links = await _getLinks();
 
+    await _writeFiles(links);
+
+    setState(() {
+      _isConverting = false;
+    });
   }
 
-  Future<List<String>> _getLinks()async {
+  Future<Html.Document> fetchRssFeed(String url) async {
+    final response = await Dio().get<String?>(url);
+    if (response.statusCode == 200) {
+      return Html.parse(response.data);
+    } else {
+      throw Exception('Failed to load RSS feed');
+    }
+  }
+
+  Future<List<String>> _getLinks() async {
     List<String> links = [];
-    // TODO
+    bool hasNext = true;
+    String prefix = _url.substring(0, _url.lastIndexOf('/') + 1);
+    if (!prefix.contains("page")) prefix = '${prefix}list/page/';
+    String postfix = _url.substring(_url.indexOf('?'));
+    String pageStr = _url.substring(_url.lastIndexOf('/') + 1, _url.indexOf('?'));
+    int page = pageStr == 'list' ? 1 : int.parse(pageStr);
+
+    setState(() {
+      _isFetching = true;
+    });
+    while(hasNext) {
+      String newUrl = prefix + page.toString() + postfix;
+      try {
+        Html.Document doc = await fetchRssFeed(newUrl);
+        List<String?> magnets = doc
+            .querySelectorAll("div.table div.clear tr a.arrow-magnet")
+            .map((el) => el.attributes['href'])
+            .toList();
+
+        Html.Element? nextEl = doc.querySelectorAll("div.table div.fl a")
+        .where((el)=>el.text.contains("下")).firstOrNull;
+        hasNext = nextEl != null;
+        
+        for(var magnet in magnets) {
+          if (magnet != null && magnet.isNotEmpty) links.add(magnet);
+        }
+
+        setState(() {
+          _reqProgress = links.length;
+        });
+
+        page++;
+      } catch (e) {
+        if (kDebugMode) {
+          print(e);
+        }
+      }
+    }
+
+    setState(() {
+      _isFetching = false;
+    });
     return links;
   }
 
-  Future<void> _writeFiles(List<String> links)async {
-    // TODO
+  Future<void> _writeFiles(List<String> links) async {
+    setState(() {
+      _total = links.length;
+    });
+    const postfix = ".txt";
+
+    Map<int, String> sbMap = {};
+    StringBuffer sb = StringBuffer("");
+    for (int i = 0; i < links.length; i++) {
+      final String url = links[i];
+      final int fileIndex = ((_current / _singleFileLinkCounts) + 1).toInt();
+      if (sbMap.containsKey(fileIndex)) {
+        sb.write(sbMap[fileIndex]);
+        sb.writeln();
+      }
+      sb.write(url);
+      sbMap[fileIndex] = sb.toString();
+      sb.clear();
+      setState(() {
+        _current++;
+      });
+    }
+
+    Directory docDir = await getApplicationDocumentsDirectory();
+    Directory subDir = Directory('${docDir.path}/run.ikaros.ch.rsstool');
+    if (!subDir.existsSync()) {
+      subDir.createSync(recursive: true);
+    }
+
+    for (var entry in sbMap.entries) {
+      String fileName = _namePrefix + entry.key.toString() + postfix;
+      File file = File('${subDir.path}/$fileName');
+      if (!file.existsSync()) file.createSync();
+      file.writeAsStringSync(entry.value);
+      if (kDebugMode) print("Write file: ${file.path}");
+    }
   }
 }
