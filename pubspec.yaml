@@ -1,4 +1,4 @@
-name: rsstool
+name: dmhytool
 description: "A rss tool on windows"
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 

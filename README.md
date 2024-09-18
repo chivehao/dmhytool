@@ -1,4 +1,4 @@
-# rsstool
+# dmhy tool
 
-A rss tool on windows
+A dmhy tool on windows
 
