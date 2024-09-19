@@ -14,3 +14,7 @@ Windows平台的小工具，用于批量提取动漫花园的磁力链接，方�
 ![Snipaste_2024-09-18_09-04-17.png](assets/Snipaste_2024-09-18_09-04-17.png)
 
 最后生成的txt文件路径在你的文档目录下的`run.ikaros.ch.dmhytool`目录里。
+
+# 视频
+
+<iframe src="//player.bilibili.com/player.html?isOutside=true&aid=113156064156739&bvid=BV1vFt3eDEfh&cid=25664951251&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
