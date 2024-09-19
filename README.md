@@ -17,4 +17,5 @@ Windows平台的小工具，用于批量提取动漫花园的磁力链接，方�
 
 # 视频
 
-<iframe src="//player.bilibili.com/player.html?isOutside=true&aid=113156064156739&bvid=BV1vFt3eDEfh&cid=25664951251&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+<https://www.bilibili.com/video/BV1vFt3eDEfh/>
+
