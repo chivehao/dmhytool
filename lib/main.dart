@@ -1,3 +1,4 @@
+import 'dart:ffi';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -19,12 +20,12 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Rss Tool',
+      title: '动漫花园小工具',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Rss Tool Convert Page'),
+      home: const MyHomePage(title: 'Convert Page'),
     );
   }
 }
@@ -42,6 +43,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final GlobalKey _formKey = GlobalKey<FormState>();
   String _namePrefix = "links-";
   int _singleFileLinkCounts = 50;
+  int _maxLinkCounts = 1000;
   String _url = "";
   bool _isConverting = false;
   bool _isFetching = false;
@@ -73,6 +75,18 @@ class _MyHomePageState extends State<MyHomePage> {
                 return null;
               },
               onSaved: (v) => _namePrefix = v!,
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              initialValue: _maxLinkCounts.toString(),
+              decoration: const InputDecoration(labelText: '最大提取的链接数量'),
+              validator: (v) {
+                if (v == null || v.isEmpty) {
+                  return '请输入最大提取的链接数量';
+                }
+                return null;
+              },
+              onSaved: (v) => _maxLinkCounts = int.parse(v!),
             ),
             const SizedBox(height: 20),
             TextFormField(
@@ -160,7 +174,8 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {
       _isFetching = true;
     });
-    while(hasNext) {
+    int i = 0;
+    while(hasNext && i <= _maxLinkCounts) {
       String newUrl = prefix + page.toString() + postfix;
       try {
         Html.Document doc = await fetchRssFeed(newUrl);
@@ -172,7 +187,9 @@ class _MyHomePageState extends State<MyHomePage> {
         Html.Element? nextEl = doc.querySelectorAll("div.table div.fl a")
         .where((el)=>el.text.contains("下")).firstOrNull;
         hasNext = nextEl != null;
-        
+
+        i += magnets.length;
+
         for(var magnet in magnets) {
           if (magnet != null && magnet.isNotEmpty) links.add(magnet);
         }
@@ -218,8 +235,9 @@ class _MyHomePageState extends State<MyHomePage> {
       });
     }
 
+    DateTime now = DateTime.now();
     Directory docDir = await getApplicationDocumentsDirectory();
-    Directory subDir = Directory('${docDir.path}/run.ikaros.ch.dmhytool');
+    Directory subDir = Directory('${docDir.path}/run.ikaros.ch.dmhytool/${now.year}.${now.month}.${now.day}');
     if (!subDir.existsSync()) {
       subDir.createSync(recursive: true);
     }
