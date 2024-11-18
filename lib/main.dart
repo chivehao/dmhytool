@@ -2,6 +2,7 @@ import 'dart:ffi';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:html/dom.dart' as Html;
@@ -41,6 +42,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final GlobalKey _formKey = GlobalKey<FormState>();
+  String _httpProxy = "";
   String _namePrefix = "links-";
   int _singleFileLinkCounts = 50;
   int _maxLinkCounts = 1000;
@@ -65,6 +67,12 @@ class _MyHomePageState extends State<MyHomePage> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           children: [
             const SizedBox(height: kToolbarHeight), // 距离顶部一个工具栏的高度
+            TextFormField(
+              initialValue: _httpProxy,
+              decoration: const InputDecoration(labelText: 'HTTP代理，例子：http://127.0.0.1:7899'),
+              onSaved: (v) => _httpProxy = v!,
+            ),
+            const SizedBox(height: 20),
             TextFormField(
               initialValue: _namePrefix,
               decoration: const InputDecoration(labelText: '输出文件名前缀'),
@@ -154,7 +162,26 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<Html.Document> fetchRssFeed(String url) async {
-    final response = await Dio().get<String?>(url);
+    Dio? dio = Dio();
+    if (_httpProxy != "") {
+      String hostPort = _httpProxy.substring(_httpProxy.indexOf("http://") + 7);
+      // 配置 HttpClientAdapter 设置代理
+      (dio.httpClientAdapter as IOHttpClientAdapter).onHttpClientCreate =
+          (client) {
+        // 创建 HttpClient
+        client.findProxy = (uri) {
+          // 设置代理地址
+          return "PROXY $hostPort"; // 替换为你的代理地址和端口
+        };
+
+        // 忽略证书校验 (仅适用于开发环境)
+        client.badCertificateCallback =
+            (X509Certificate cert, String host, int port) => true;
+
+        return client;
+      };
+    }
+    final response = await dio.get<String?>(url);
     if (response.statusCode == 200) {
       return Html.parse(response.data);
     } else {
