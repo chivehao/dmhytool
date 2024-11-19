@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:html/dom.dart' as Html;
 import 'package:html/parser.dart'  as Html;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'message_utils.dart';
 
@@ -43,6 +44,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   final GlobalKey _formKey = GlobalKey<FormState>();
   String _httpProxy = "";
+  final FocusNode _httpProxyFocusNode = FocusNode();
   String _namePrefix = "links-";
   int _singleFileLinkCounts = 50;
   int _maxLinkCounts = 1000;
@@ -52,6 +54,40 @@ class _MyHomePageState extends State<MyHomePage> {
   int _total = 0;
   int _current = 0;
   int _reqProgress = 0;
+
+
+
+  Future<void> _saveConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('HTTP_PROXY', _httpProxy);
+  }
+
+  Future<void> _loadConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+    final httpProxy = prefs.getString("HTTP_PROXY");
+    setState(() {
+      _httpProxy = httpProxy ?? "";
+    });
+  }
+
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfig();
+    _httpProxyFocusNode.addListener((){
+      if (!_httpProxyFocusNode.hasFocus) {
+        _saveConfig();
+      }
+    });
+  }
+
+
+  @override
+  void dispose() {
+    _saveConfig();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,9 +104,16 @@ class _MyHomePageState extends State<MyHomePage> {
           children: [
             const SizedBox(height: kToolbarHeight), // 距离顶部一个工具栏的高度
             TextFormField(
+              focusNode: _httpProxyFocusNode,
               initialValue: _httpProxy,
               decoration: const InputDecoration(labelText: 'HTTP代理，例子：http://127.0.0.1:7899'),
-              onSaved: (v) => _httpProxy = v!,
+              onChanged: (v) {
+                _httpProxy = v;
+              },
+              onSaved: (v) {
+                _httpProxy = v!;
+                _saveConfig();
+              },
             ),
             const SizedBox(height: 20),
             TextFormField(
